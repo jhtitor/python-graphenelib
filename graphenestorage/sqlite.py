@@ -35,8 +35,11 @@ class SQLiteFile():
             argument ``profile``.
     """
 
-    def __init__(self, *args, **kwargs):
-        appauthor = "Fabian Schuh"
+    @classmethod
+    def get_path(*args, full=True, **kwargs):
+        appauthor = kwargs.get(
+            "appauthor",
+            "Fabian Schuh")
         appname = kwargs.get(
             "appname",
             "graphene")
@@ -45,15 +48,23 @@ class SQLiteFile():
             user_data_dir(appname, appauthor))
 
         if "profile" in kwargs:
-            self.storageDatabase = "{}.sqlite".format(kwargs["profile"])
+            filename = "{}.sqlite".format(kwargs["profile"])
         else:
-            self.storageDatabase = "{}.sqlite".format(appname)
+            filename = "{}.sqlite".format(appname)
 
-        self.sqlDataBaseFile = os.path.join(
-            data_dir, self.storageDatabase)
+        if not full:
+            return data_dir
 
+        return os.path.join(data_dir, filename)
+
+
+    def __init__(self, *args, **kwargs):
         if "path" in kwargs:
             self.sqlDataBaseFile = kwargs["path"]
+            data_dir = os.path.dirname(self.sqlDataBaseFile)
+        else:
+            self.sqlDataBaseFile = SQLiteFile.get_path(full=True, **kwargs)
+            data_dir = SQLiteFile.get_path(full=False, **kwargs)
 
         must_exist = not(kwargs.pop("create", True))
         if must_exist:
@@ -63,13 +74,10 @@ class SQLiteFile():
             except sqlite3.OperationalError:
                 raise ValueError("Could not open file %s" % self.sqlDataBaseFile)
 
-        """ Ensure that the directory in which the data is stored
-            exists
-        """
-        if os.path.isdir(data_dir):  # pragma: no cover
-            return
-        else:  # pragma: no cover
-            os.makedirs(data_dir)
+        #  Ensure that the directory in which the data is stored
+        #     exists
+        elif not(os.path.isdir(data_dir)):  # pragma: no cover
+            os.makedirs(data_dir, exist_ok=True)
 
 
 class SQLiteStore(SQLiteFile, StoreInterface):
