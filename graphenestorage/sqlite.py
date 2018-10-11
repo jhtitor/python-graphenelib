@@ -36,35 +36,59 @@ class SQLiteFile():
     """
 
     @classmethod
-    def get_path(*args, full=True, **kwargs):
-        appauthor = kwargs.get(
-            "appauthor",
-            "Fabian Schuh")
-        appname = kwargs.get(
-            "appname",
-            "graphene")
-        data_dir = kwargs.get(
-            "data_dir",
-            user_data_dir(appname, appauthor))
+    def get_filename(self, **kwargs):
+        appname = kwargs.get("appname", "graphene")
 
         if "profile" in kwargs:
             filename = "{}.sqlite".format(kwargs["profile"])
         else:
             filename = "{}.sqlite".format(appname)
 
+        return filename
+
+    @classmethod
+    def get_path(self, *args, full=True, **kwargs):
+        appauthor = kwargs.get("appauthor", "Fabian Schuh")
+        appname = kwargs.get("appname", "graphene")
+        data_dir = kwargs.get(
+            "data_dir",
+            user_data_dir(appname, appauthor))
+
         if not full:
             return data_dir
 
+        filename = self.get_filename(**kwargs)
+
         return os.path.join(data_dir, filename)
 
-
     def __init__(self, *args, **kwargs):
+        """ Initializes new storage object.
+
+            No arguments are required. However, you may specify `path` to side-step
+            the default/automatic path generation.
+
+            If you *do* use, automatic path generation, `appname`, `appauthor` and
+            `profile` can be used to adjust the result.
+
+            You can also provide `data_dir`, so that the directory is specified
+            by you (but the filename is still auto-generated).
+
+            :param str path: Full path to database file (None by default)
+            :param bool create: Create file if it does not exist (True by default)
+            :param str appname: Application name (default is "graphene")
+            :param str appauthor: Application author (default is "Fabian Schuh")
+            :param str profile: Filename base (default is "graphene")
+            :param str data_dir: Data dir to use (default is auto-generated)
+        """
         if "path" in kwargs:
             self.sqlDataBaseFile = kwargs["path"]
+            self.storageDatabase = os.path.basename(self.sqlDataBaseFile)
             data_dir = os.path.dirname(self.sqlDataBaseFile)
         else:
-            self.sqlDataBaseFile = SQLiteFile.get_path(full=True, **kwargs)
-            data_dir = SQLiteFile.get_path(full=False, **kwargs)
+            cls = self.__class__
+            self.sqlDataBaseFile = cls.get_path(full=True, **kwargs)
+            self.storageDatabase = cls.get_filename(**kwargs)
+            data_dir = cls.get_path(full=False, **kwargs)
 
         must_exist = not(kwargs.pop("create", True))
         if must_exist:
@@ -127,10 +151,7 @@ class SQLiteStore(SQLiteFile, StoreInterface):
                 self.__tablename__,
                 self.__key__
             ), (key,))
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        return True if cursor.fetchone() else False
+        return True if self.sql_fetchone(query) else False
 
     def __setitem__(self, key, value):
         """ Sets an item in the store
@@ -152,10 +173,7 @@ class SQLiteStore(SQLiteFile, StoreInterface):
                     self.__key__,
                     self.__value__,
                 ), (key, value))
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        connection.commit()
+        self.sql_execute(query)
 
     def __getitem__(self, key):
         """ Gets an item from the store as if it was a dictionary
@@ -168,10 +186,7 @@ class SQLiteStore(SQLiteFile, StoreInterface):
                 self.__tablename__,
                 self.__key__
             ), (key,))
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        result = cursor.fetchone()
+        result = self.sql_fetchone(query)
         if result:
             return result[0]
         else:
@@ -188,20 +203,14 @@ class SQLiteStore(SQLiteFile, StoreInterface):
     def keys(self):
         query = ("SELECT {} from {}".format(
             self.__key__,
-            self.__tablename__))
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(query)
-        return [x[0] for x in cursor.fetchall()]
+            self.__tablename__), )
+        return [x[0] for x in self.sql_fetchall(query)]
 
     def __len__(self):
         """ return lenght of store
         """
-        query = ("SELECT id from {}".format(self.__tablename__))
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(query)
-        return len(cursor.fetchall())
+        query = ("SELECT id from {}".format(self.__tablename__), )
+        return len(self.sql_fetchall(query))
 
     def __contains__(self, key):
         """ Tests if a key is contained in the store.
@@ -221,12 +230,9 @@ class SQLiteStore(SQLiteFile, StoreInterface):
         query = ("SELECT {}, {} from {}".format(
             self.__key__,
             self.__value__,
-            self.__tablename__))
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(query)
+            self.__tablename__), )
         r = []
-        for key, value in cursor.fetchall():
+        for key, value in self.sql_fetchall(query):
             r.append((key, value))
         return r
 
@@ -242,6 +248,31 @@ class SQLiteStore(SQLiteFile, StoreInterface):
             return default
 
     # Specific for this library
+    def sql_fetchone(self, query):
+        connection = sqlite3.connect(self.sqlDataBaseFile)
+        cursor = connection.cursor()
+        cursor.execute(*query)
+        result = cursor.fetchone()
+        return result
+
+    def sql_fetchall(self, query):
+        connection = sqlite3.connect(self.sqlDataBaseFile)
+        cursor = connection.cursor()
+        cursor.execute(*query)
+        results = cursor.fetchall()
+        return results
+
+    def sql_execute(self, query, lastid=False):
+        connection = sqlite3.connect(self.sqlDataBaseFile)
+        cursor = connection.cursor()
+        cursor.execute(*query)
+        connection.commit()
+        if lastid:
+            cursor = connection.cursor()
+            cursor.execute("SELECT last_insert_rowid();")
+            result = cursor.fetchone()
+            return result[0]
+
     def delete(self, key):
         """ Delete a key from the store
 
@@ -252,19 +283,13 @@ class SQLiteStore(SQLiteFile, StoreInterface):
                 self.__tablename__,
                 self.__key__
             ), (key,))
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        connection.commit()
+        self.sql_execute(query)
 
     def wipe(self):
         """ Wipe the store
         """
-        query = "DELETE FROM {}".format(self.__tablename__)
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(query)
-        connection.commit()
+        query = ("DELETE FROM {}".format(self.__tablename__), )
+        self.sql_execute(query)
 
     def exists(self):
         """ Check if the database table exists
@@ -272,15 +297,12 @@ class SQLiteStore(SQLiteFile, StoreInterface):
         query = ("SELECT name FROM sqlite_master " +
                  "WHERE type='table' AND name=?",
                  (self.__tablename__, ))
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        return True if cursor.fetchone() else False
+        return True if self.sql_fetchone(query) else False
 
     def create(self):  # pragma: no cover
         """ Create the new table in the SQLite database
         """
-        query = (
+        query = ((
             """
             CREATE TABLE {} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -291,8 +313,5 @@ class SQLiteStore(SQLiteFile, StoreInterface):
             self.__tablename__,
             self.__key__,
             self.__value__
-        )
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(query)
-        connection.commit()
+        ), )
+        self.sql_execute(query)
