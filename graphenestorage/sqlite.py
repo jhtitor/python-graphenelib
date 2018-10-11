@@ -253,6 +253,7 @@ class SQLiteStore(SQLiteFile, StoreInterface):
         cursor = connection.cursor()
         cursor.execute(*query)
         result = cursor.fetchone()
+        connection.close()
         return result
 
     def sql_fetchall(self, query):
@@ -260,6 +261,7 @@ class SQLiteStore(SQLiteFile, StoreInterface):
         cursor = connection.cursor()
         cursor.execute(*query)
         results = cursor.fetchall()
+        connection.close()
         return results
 
     def sql_execute(self, query, lastid=False):
@@ -267,11 +269,13 @@ class SQLiteStore(SQLiteFile, StoreInterface):
         cursor = connection.cursor()
         cursor.execute(*query)
         connection.commit()
+        ret = None
         if lastid:
             cursor = connection.cursor()
             cursor.execute("SELECT last_insert_rowid();")
-            result = cursor.fetchone()
-            return result[0]
+            ret = cursor.fetchone()[0]
+        connection.close()
+        return ret
 
     def delete(self, key):
         """ Delete a key from the store
