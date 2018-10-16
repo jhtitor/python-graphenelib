@@ -42,14 +42,6 @@ class SqliteConfigurationStore(
     #: The name of the 'value' column
     __value__ = "value"
 
-    def wipe(self):
-        """ Wipe the store (different from `super().wipe()`)
-        """
-        query = ("DELETE FROM {} WHERE key <> ?".format(self.__tablename__),
-            (MasterPassword.config_key, )
-        )
-        self.sql_execute(query)
-
 
 # Keys
 class InRamPlainKeyStore(
