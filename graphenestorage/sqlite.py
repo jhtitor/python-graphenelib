@@ -114,31 +114,41 @@ class SQLiteCommon(object):
     """
     def sql_fetchone(self, query):
         connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        result = cursor.fetchone()
-        connection.close()
+        try:
+            cursor = connection.cursor()
+            cursor.execute(*query)
+            result = cursor.fetchone()
+        finally:
+            connection.close()
         return result
 
     def sql_fetchall(self, query):
         connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        results = cursor.fetchall()
-        connection.close()
+        try:
+            cursor = connection.cursor()
+            cursor.execute(*query)
+            results = cursor.fetchall()
+        finally:
+            connection.close()
         return results
 
     def sql_execute(self, query, lastid=False):
         connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        connection.commit()
-        ret = None
-        if lastid:
+        try:
             cursor = connection.cursor()
-            cursor.execute("SELECT last_insert_rowid();")
-            ret = cursor.fetchone()[0]
-        connection.close()
+            cursor.execute(*query)
+            connection.commit()
+        except:
+            connection.close()
+            raise
+        ret = None
+        try:
+            if lastid:
+                cursor = connection.cursor()
+                cursor.execute("SELECT last_insert_rowid();")
+                ret = cursor.fetchone()[0]
+        finally:
+            connection.close()
         return ret
 
 
