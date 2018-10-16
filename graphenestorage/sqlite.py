@@ -3,7 +3,10 @@ import sqlite3
 import logging
 
 from appdirs import user_data_dir
-from urllib.request import pathname2url
+try:
+    from urllib.request import pathname2url
+except ImportError:
+    from urllib import pathname2url
 
 from .interfaces import StoreInterface
 
@@ -104,7 +107,52 @@ class SQLiteFile():
             os.makedirs(data_dir, exist_ok=True)
 
 
-class SQLiteStore(SQLiteFile, StoreInterface):
+class SQLiteCommon(object):
+    """ This class abstracts away common sqlite3 operations.
+
+        This class should not be used directly.
+    """
+    def sql_fetchone(self, query):
+        connection = sqlite3.connect(self.sqlDataBaseFile)
+        try:
+            cursor = connection.cursor()
+            cursor.execute(*query)
+            result = cursor.fetchone()
+        finally:
+            connection.close()
+        return result
+
+    def sql_fetchall(self, query):
+        connection = sqlite3.connect(self.sqlDataBaseFile)
+        try:
+            cursor = connection.cursor()
+            cursor.execute(*query)
+            results = cursor.fetchall()
+        finally:
+            connection.close()
+        return results
+
+    def sql_execute(self, query, lastid=False):
+        connection = sqlite3.connect(self.sqlDataBaseFile)
+        try:
+            cursor = connection.cursor()
+            cursor.execute(*query)
+            connection.commit()
+        except:
+            connection.close()
+            raise
+        ret = None
+        try:
+            if lastid:
+                cursor = connection.cursor()
+                cursor.execute("SELECT last_insert_rowid();")
+                ret = cursor.fetchone()[0]
+        finally:
+            connection.close()
+        return ret
+
+
+class SQLiteStore(SQLiteFile, SQLiteCommon, StoreInterface):
     """ The SQLiteStore deals with the sqlite3 part of storing data into a
         database file.
 
@@ -248,35 +296,6 @@ class SQLiteStore(SQLiteFile, StoreInterface):
             return default
 
     # Specific for this library
-    def sql_fetchone(self, query):
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        result = cursor.fetchone()
-        connection.close()
-        return result
-
-    def sql_fetchall(self, query):
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        results = cursor.fetchall()
-        connection.close()
-        return results
-
-    def sql_execute(self, query, lastid=False):
-        connection = sqlite3.connect(self.sqlDataBaseFile)
-        cursor = connection.cursor()
-        cursor.execute(*query)
-        connection.commit()
-        ret = None
-        if lastid:
-            cursor = connection.cursor()
-            cursor.execute("SELECT last_insert_rowid();")
-            ret = cursor.fetchone()[0]
-        connection.close()
-        return ret
-
     def delete(self, key):
         """ Delete a key from the store
 
