@@ -3,6 +3,10 @@ import sqlite3
 import logging
 
 from appdirs import user_data_dir
+try:
+    from urllib.request import pathname2url
+except ImportError:
+    from urllib import pathname2url
 
 from .interfaces import StoreInterface
 
