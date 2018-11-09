@@ -17,6 +17,7 @@ class Websocket(Rpc):
 
     def connect(self):
         log.debug("Trying to connect to node %s" % self.url)
+        self._request_id = 0
         if self.url[:3] == "wss":
             ssl_defaults = ssl.get_default_verify_paths()
             sslopt_ca_certs = {'ca_certs': ssl_defaults.cafile}
@@ -30,6 +31,7 @@ class Websocket(Rpc):
             http_proxy_auth = (self.proxy_user,self.proxy_pass) if self.proxy_user else None,
             proxy_type = self.proxy_type
         )
+
         if self.user and self.password:
             self.login(self.user, self.password, api_id=1)
 
@@ -62,13 +64,15 @@ class Websocket(Rpc):
         self.__lock.acquire()
 
         # Send over websocket
-        self.ws.send(
-            json.dumps(payload, ensure_ascii=False).encode('utf8')
-        )
-        # Receive from websocket
-        ret = self.ws.recv()
+        try:
+            self.ws.send(
+                json.dumps(payload, ensure_ascii=False).encode('utf8')
+            )
+            # Receive from websocket
+            ret = self.ws.recv()
 
-        # Release lock
-        self.__lock.release()
+        finally:
+            # Release lock
+            self.__lock.release()
 
         return ret
