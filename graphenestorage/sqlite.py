@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import sqlite3
 import logging
@@ -14,7 +15,7 @@ log = logging.getLogger(__name__)
 timeformat = "%Y%m%d-%H%M%S"
 
 
-class SQLiteFile():
+class SQLiteFile:
     """ This class ensures that the user's data is stored in its OS
         preotected user directory:
 
@@ -179,14 +180,8 @@ class SQLiteStore(SQLiteFile, SQLiteCommon, StoreInterface):
         #: Storage
         SQLiteFile.__init__(self, *args, **kwargs)
         StoreInterface.__init__(self, *args, **kwargs)
-        if (
-            self.__tablename__ is None or
-            self.__key__ is None or
-            self.__value__ is None
-        ):
-            raise ValueError(
-                "Values missing for tablename, key, or value!"
-            )
+        if self.__tablename__ is None or self.__key__ is None or self.__value__ is None:
+            raise ValueError("Values missing for tablename, key, or value!")
         if not self.exists():  # pragma: no cover
             self.create()
 
@@ -210,10 +205,10 @@ class SQLiteStore(SQLiteFile, SQLiteCommon, StoreInterface):
         if self._haveKey(key):
             query = (
                 "UPDATE {} SET {}=? WHERE {}=?".format(
-                    self.__tablename__,
-                    self.__value__,
-                    self.__key__
-                ), (value, key))
+                    self.__tablename__, self.__value__, self.__key__
+                ),
+                (value, key),
+            )
         else:
             query = (
                 "INSERT INTO {} ({}, {}) VALUES (?, ?)".format(
